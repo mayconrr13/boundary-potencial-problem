@@ -5,37 +5,69 @@ from tangentNormalAndJacobian import getPointsPropertiesOnElement
 
 integrationPoints = [-0.9815606342467192506906, -0.9041172563704748566785, -0.769902674194304687037, -0.5873179542866174472967, -0.3678314989981801937527, -0.1252334085114689154724, 0.1252334085114689154724, 0.3678314989981801937527, 0.5873179542866174472967, 0.7699026741943046870369, 0.9041172563704748566785, 0.9815606342467192506906]
 weights = [0.0471753363865118271946, 0.1069393259953184309603, 0.1600783285433462263347, 0.2031674267230659217491, 0.233492536538354808761, 0.2491470458134027850006, 0.2491470458134027850006, 0.233492536538354808761, 0.203167426723065921749, 0.160078328543346226335, 0.1069393259953184309603, 0.0471753363865118271946]
-
+# integrationPoints = [-0.57735, 0.57735]
+# weights = [1,1]
 # element, value
 # u = [[1, 0], [3, 10]]
 # q = [[0, 0], [2, 0]]
 # node, value
-u = [[5, 0], [6, 0], [9, 10], [10, 10]]
-q = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [7, 0], [8, 0]]
+u = [[2, 0], [3, 0], [6, 10], [7, 10]]
+q = [[0, 0], [1, 0], [4, 0], [5,0]]
 
 geometricNodes = [
-    [2, 0],
-    [3.5, 0],
-    [5, 0],
-    [6.5, 0],
+    [0, 0],
     [8, 0],
     [8, 0],
     [8, 4],
     [8, 4],
-    [2, 4],
-    [2, 4],
-    [2, 0]
+    [0, 4],
+    [0, 4],
+    [0, 0]
 ]
 
 elements = [
     [0,1],
-    [1,2],
     [2,3],
-    [3,4],
-    [5,6],
-    [7,8],
-    [9,10]
+    [4,5],
+    [6,7]
 ]
+
+# u = [[4,0],[5,0],[6,0],[7,0],[12,300],[13,300],[14,300],[15,300], [0,300], [11,300]]
+# q = [[0,0],[1,0],[2,0],[3,0],[4,-50],[5,-50],[6,-50],[7,-50],[8,0],[9,0],[10,0],[11,0],[12,50],[13,50],[14,50],[15,50]]
+
+# geometricNodes = [
+#     [0,0],
+#     [2,0],
+#     [4,0],
+#     [6,0],
+#     [6,0],
+#     [6,2],
+#     [6,4],
+#     [6,6],
+#     [6,6],
+#     [4,6],
+#     [2,6],
+#     [0,6],
+#     [0,6],
+#     [0,4],
+#     [0,2],
+#     [0,0],
+# ]
+
+# elements = [
+#     [0,1],
+#     [1,2],
+#     [2,3],
+#     [4,5],
+#     [5,6],
+#     [6,7],
+#     [8,9],
+#     [9,10],
+#     [10,11],
+#     [12,13],
+#     [13, 14],
+#     [14,15]
+# ]
 
 class Element:
     def __init__(self, nodeList: list):
@@ -182,10 +214,9 @@ def getSourcePoints(duplicatedNodes, geometricNodes):
             if sourcePointsList.count(sourcePointCoordinates) < 1:
                 sourcePointsList.append(sourcePointCoordinates)
 
-    sourcePointsList = np.array(sourcePointsList)
+    # sourcePointsList = np.array(sourcePointsList)
 
     return sourcePointsList     
-
 duplicatedNodes = getDuplicatedNodes(geometricNodes)
 colocationMesh = generateColocationMesh(elementsList, duplicatedNodes, geometricNodes)
 # sourcePoints = getSourcePoints(duplicatedNodes, geometricNodes)
@@ -286,19 +317,21 @@ def getHandGMatrices(sourcePoints: list, elementsList: list, geometricNodes):
                 radiusComponent2 = integrationPointRadius[0][1] / integrationPointRadius[1]
 
                 DRDN = radiusComponent1 * normalVector[ip][0] + radiusComponent2 * normalVector[ip][1]
-                
+                # print(integrationPointRadius)
                 Q = (-1 / (2 * math.pi * integrationPointRadius[1])) * DRDN * jacobian[ip] * weights[ip]
-
                 # checagem se o elemento contem o ponto fonte e se é continuo/semi/descontinuo e
                 # avaliar a contribuição no fluxo.
                 if sourcePointIsOnElement:
                     U = UContribuitionWithSingularitySubtraction(elementType, jacobian[ip], sourcePointAdimentionalCoordinate, integrationPoints[ip], integrationPointRadius[1], ip)
+                    # print(el, "-d", ip, ": ", U)
                                         
                 else:
                     U = (-1 / (2 * math.pi)) * math.log(integrationPointRadius[1], math.e) * jacobian[ip] * weights[ip]
+                    # print(el, "-f", ip, ": ", U)
+                                     
 
                 for en in range(len(elementNodes)):
-                    shapeFunctionValueOnIP = getShapeFunctionValueOnNode(integrationPoints[ip], en, adimentionalPoints)
+                    shapeFunctionValueOnIP = getShapeFunctionValueOnNode(integrationPoints[ip], en, colocationAdimentionalPoints)
 
                     Qcontribution = Q * shapeFunctionValueOnIP
                     Ucontribution = U * shapeFunctionValueOnIP
@@ -314,30 +347,26 @@ def getHandGMatrices(sourcePoints: list, elementsList: list, geometricNodes):
 HMatrix, GMatrix = getHandGMatrices(sourcePoints, elementsList, geometricNodes)
 
 def getFinalComponents(HMatrix, GMatrix, u, q, colocationMesh):
-    FVector = np.zeros([len(colocationMesh)], dtype=float)
+    FHMatrix = np.zeros((len(sourcePoints), len(sourcePoints)))
+    FGMatrix = np.zeros((len(sourcePoints), len(sourcePoints)))
+    FVector = np.zeros(len(colocationMesh), dtype=float)
 
     for j in range(len(u)):
-        HMatrix[:, u[j][0]] = - GMatrix[:, u[j][0]]
-        GMatrix[:, u[j][0]] = - HMatrix[:, u[j][0]]
+        FHMatrix[:, u[j][0]] = - GMatrix[:, u[j][0]]
+        FGMatrix[:, u[j][0]] = - HMatrix[:, u[j][0]]
 
         FVector[u[j][0]] = u[j][1]
 
     for k in range(len(q)):
+        FHMatrix[:, q[k][0]] = HMatrix[:, q[k][0]]
+        FGMatrix[:, q[k][0]] = GMatrix[:, q[k][0]]
+
         FVector[q[k][0]] = q[k][1]
 
-    return HMatrix, GMatrix, FVector
+    return FHMatrix, FGMatrix, FVector
 
 HMatrix, GMatrix, FVector = getFinalComponents(HMatrix, GMatrix, u, q, colocationMesh)
 
 results = np.linalg.solve(HMatrix, np.dot(GMatrix, FVector))
-
 print(results)
 
-def checkHMatrixRowsValues(HMatrix):
-    sum = np.zeros(len(sourcePoints))
-    for j in range(len(sum)):
-        for i in range(len(HMatrix)):
-            sum[j] += HMatrix[j][i]
-
-    print(sum)
-# checkHMatrixRowsValues(HMatrix)

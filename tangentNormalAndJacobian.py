@@ -47,9 +47,6 @@ def getPointsPropertiesOnElement(points: list, elementNodes: list, adimentionalP
 
     return elementPointsProperties
 
-# results = getPointsPropertiesOnElement([7, 15], [[2, 0], [5, 0]], [-1, 1])
-# print(results)
-
 def getPointProperty(ksi, elementNodes, adimentionalPoints):
     xTangentComponent = 0
     yTangentComponent = 0

@@ -5,8 +5,7 @@ from tangentNormalAndJacobian import getPointsPropertiesOnElement
 
 integrationPoints = [-0.9815606342467192506906, -0.9041172563704748566785, -0.769902674194304687037, -0.5873179542866174472967, -0.3678314989981801937527, -0.1252334085114689154724, 0.1252334085114689154724, 0.3678314989981801937527, 0.5873179542866174472967, 0.7699026741943046870369, 0.9041172563704748566785, 0.9815606342467192506906]
 weights = [0.0471753363865118271946, 0.1069393259953184309603, 0.1600783285433462263347, 0.2031674267230659217491, 0.233492536538354808761, 0.2491470458134027850006, 0.2491470458134027850006, 0.233492536538354808761, 0.203167426723065921749, 0.160078328543346226335, 0.1069393259953184309603, 0.0471753363865118271946]
-# integrationPoints = [-0.57735, 0.57735]
-# weights = [1,1]
+
 # element, value
 # u = [[1, 0], [3, 10]]
 # q = [[0, 0], [2, 0]]
@@ -168,8 +167,6 @@ elementsList = np.zeros(len(elements), dtype=list)
 for el in range(len(elements)):
     elementsList[el] = Element(elements[el])
 
-
-# process
 def getDuplicatedNodes(nodeList: list):
     # newList = []
     duplicatedNodes = np.array([], dtype=int)
@@ -217,6 +214,7 @@ def getSourcePoints(duplicatedNodes, geometricNodes):
     # sourcePointsList = np.array(sourcePointsList)
 
     return sourcePointsList     
+    
 duplicatedNodes = getDuplicatedNodes(geometricNodes)
 colocationMesh = generateColocationMesh(elementsList, duplicatedNodes, geometricNodes)
 # sourcePoints = getSourcePoints(duplicatedNodes, geometricNodes)
@@ -274,11 +272,11 @@ def UContribuitionWithSingularitySubtraction(elementType, jacobian, sourcePoint,
     cauchyPrincipalValue = 0
 
     if elementType == "semicontinuous" or elementType == "discontinuous":
-        secondTermCPV = (1 + fieldPoint) * math.log(jacobian * (1 + fieldPoint), math.e) + (1 - fieldPoint) * math.log10(jacobian * (1 - fieldPoint)) - (1 + fieldPoint) - (1 - fieldPoint)
+        secondTermCPV = (1 + fieldPoint) * math.log(jacobian * (1 + fieldPoint), math.e) + (1 - fieldPoint) * math.log((jacobian * (1 - fieldPoint)), math.e) - (1 + fieldPoint) - (1 - fieldPoint)
 
         cauchyPrincipalValue += (-1 / (2 * math.pi)) * secondTermCPV
     else: 
-        secondTermCPV = (1 + fieldPoint) * math.log(jacobian * (1 + fieldPoint), math.e) + (1 - fieldPoint) * math.log10(jacobian * (1 - fieldPoint)) - (1 + fieldPoint) - (1 - fieldPoint)
+        secondTermCPV = (1 + fieldPoint) * math.log(jacobian * (1 + fieldPoint), math.e) + (1 - fieldPoint) * math.log((jacobian * (1 - fieldPoint)), math.e) - (1 + fieldPoint) - (1 - fieldPoint)
         cauchyPrincipalValue += (-1 / (2 * math.pi)) * secondTermCPV
 
     U = UInitialContribuition - USecondTerm + cauchyPrincipalValue
@@ -317,17 +315,14 @@ def getHandGMatrices(sourcePoints: list, elementsList: list, geometricNodes):
                 radiusComponent2 = integrationPointRadius[0][1] / integrationPointRadius[1]
 
                 DRDN = radiusComponent1 * normalVector[ip][0] + radiusComponent2 * normalVector[ip][1]
-                # print(integrationPointRadius)
+                
                 Q = (-1 / (2 * math.pi * integrationPointRadius[1])) * DRDN * jacobian[ip] * weights[ip]
-                # checagem se o elemento contem o ponto fonte e se é continuo/semi/descontinuo e
-                # avaliar a contribuição no fluxo.
+                
                 if sourcePointIsOnElement:
                     U = UContribuitionWithSingularitySubtraction(elementType, jacobian[ip], sourcePointAdimentionalCoordinate, integrationPoints[ip], integrationPointRadius[1], ip)
-                    # print(el, "-d", ip, ": ", U)
                                         
                 else:
                     U = (-1 / (2 * math.pi)) * math.log(integrationPointRadius[1], math.e) * jacobian[ip] * weights[ip]
-                    # print(el, "-f", ip, ": ", U)
                                      
 
                 for en in range(len(elementNodes)):
@@ -368,5 +363,6 @@ def getFinalComponents(HMatrix, GMatrix, u, q, colocationMesh):
 HMatrix, GMatrix, FVector = getFinalComponents(HMatrix, GMatrix, u, q, colocationMesh)
 
 results = np.linalg.solve(HMatrix, np.dot(GMatrix, FVector))
+
 print(results)
 

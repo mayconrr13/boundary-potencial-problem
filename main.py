@@ -1,7 +1,8 @@
 import math
 import numpy as np
+from numpy.lib.utils import source
 from shapeFunctions import getShapeFunctionValueOnNode
-from tangentNormalAndJacobian import getPointsPropertiesOnElement
+from tangentNormalAndJacobian import getPointProperty, getPointsPropertiesOnElement
 
 integrationPoints = [-0.9815606342467192506906, -0.9041172563704748566785, -0.769902674194304687037, -0.5873179542866174472967, -0.3678314989981801937527, -0.1252334085114689154724, 0.1252334085114689154724, 0.3678314989981801937527, 0.5873179542866174472967, 0.7699026741943046870369, 0.9041172563704748566785, 0.9815606342467192506906]
 weights = [0.0471753363865118271946, 0.1069393259953184309603, 0.1600783285433462263347, 0.2031674267230659217491, 0.233492536538354808761, 0.2491470458134027850006, 0.2491470458134027850006, 0.233492536538354808761, 0.203167426723065921749, 0.160078328543346226335, 0.1069393259953184309603, 0.0471753363865118271946]
@@ -31,8 +32,8 @@ elements = [
     [6,7]
 ]
 
-# u = [[4,0],[5,0],[6,0],[7,0],[12,300],[13,300],[14,300],[15,300], [0,300], [11,300]]
-# q = [[0,0],[1,0],[2,0],[3,0],[4,-50],[5,-50],[6,-50],[7,-50],[8,0],[9,0],[10,0],[11,0],[12,50],[13,50],[14,50],[15,50]]
+# u = [[4,0],[5,0],[6,0],[7,0],[12,300],[13,300],[14,300],[15,300]]
+# q = [[0,0],[1,0],[2,0],[3,0],[8,0],[9,0],[10,0],[11,0]]
 
 # geometricNodes = [
 #     [0,0],
@@ -217,8 +218,8 @@ def getSourcePoints(duplicatedNodes, geometricNodes):
     
 duplicatedNodes = getDuplicatedNodes(geometricNodes)
 colocationMesh = generateColocationMesh(elementsList, duplicatedNodes, geometricNodes)
-# sourcePoints = getSourcePoints(duplicatedNodes, geometricNodes)
-sourcePoints = colocationMesh
+sourcePoints = getSourcePoints(duplicatedNodes, geometricNodes)
+# sourcePoints = colocationMesh
 
 def getIntegrationPointCoordinates(points: float, elementNodes: list, adimentionalPoints: list):
     elementPointsCoordinates = []
@@ -263,34 +264,32 @@ def handleColocationNodeOnElement(element, sourcePointCoordinate):
     else: 
         return False    
 
-def UContribuitionWithSingularitySubtraction(elementType, jacobian, sourcePoint, fieldPoint, radius, integrationPointIndex):
-    UInitialContribuition = (-1 / (2 * math.pi)) * math.log(radius, math.e) * jacobian * weights[integrationPointIndex]
-    
+def UContribuitionWithSingularitySubtraction(jacobian, sourcePoint, fieldPoint, integrationPointIndex):
     radiusCheck = jacobian * (fieldPoint - sourcePoint)
-    USecondTerm = (-1 / (2 * math.pi)) * math.log(abs(radiusCheck), math.e) * jacobian * weights[integrationPointIndex]
-
+    USecondTerm = - (-1 / (2 * math.pi)) * math.log(abs(radiusCheck), math.e) * jacobian * weights[integrationPointIndex]
+    
     cauchyPrincipalValue = 0
 
-    if elementType == "semicontinuous" or elementType == "discontinuous":
-        secondTermCPV = (1 + fieldPoint) * math.log(jacobian * (1 + fieldPoint), math.e) + (1 - fieldPoint) * math.log((jacobian * (1 - fieldPoint)), math.e) - (1 + fieldPoint) - (1 - fieldPoint)
+    if sourcePoint > -1 and sourcePoint < 1:
+        secondTermCPV = (1 + sourcePoint) * math.log((jacobian * (1 + sourcePoint)), math.e) + (1 - sourcePoint) * math.log((jacobian * (1 - sourcePoint)), math.e) - (1 + sourcePoint) - (1 - sourcePoint)
 
-        cauchyPrincipalValue += (-1 / (2 * math.pi)) * secondTermCPV
+        cauchyPrincipalValue += (-1 / (2 * math.pi)) * jacobian * secondTermCPV
+        
     else: 
-        secondTermCPV = (1 + fieldPoint) * math.log(jacobian * (1 + fieldPoint), math.e) + (1 - fieldPoint) * math.log((jacobian * (1 - fieldPoint)), math.e) - (1 + fieldPoint) - (1 - fieldPoint)
-        cauchyPrincipalValue += (-1 / (2 * math.pi)) * secondTermCPV
+        secondTermCPV = 2 * math.log((jacobian * 2), math.e) - 2
+        cauchyPrincipalValue += (-1 / (2 * math.pi)) * jacobian * secondTermCPV
+        print("aqui?")
 
-    U = UInitialContribuition - USecondTerm + cauchyPrincipalValue
-
-    return U
+    return USecondTerm, cauchyPrincipalValue
 
 def getIndex(newList, parameter):
     for i in range(len(newList)):
         if parameter == newList[i]:
             return i
 
-def getHandGMatrices(sourcePoints: list, elementsList: list, geometricNodes):
-    HMatrix = np.zeros((len(sourcePoints), len(sourcePoints)))
-    GMatrix = np.zeros((len(sourcePoints), len(sourcePoints)))
+def getHandGMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes):
+    HMatrix = np.zeros((len(sourcePoints), len(colocationMesh)))
+    GMatrix = np.zeros((len(sourcePoints), len(colocationMesh)))
     correctionMatrix = np.identity(len(sourcePoints)) * 1/2
 
     for sp in range(len(sourcePoints)):
@@ -298,14 +297,13 @@ def getHandGMatrices(sourcePoints: list, elementsList: list, geometricNodes):
         for el in range(len(elementsList)):
             integrationPointsRealCoordinates = getIntegrationPointsCoordinatesPerElement(elementsList[el], geometricNodes)
             elementNodes = elementsList[el].getElementNodesRealCoordinates(geometricNodes)
-            elementType = elementsList[el].handleElementType(duplicatedNodes)
             colocationCoordinates = elementsList[el].getColocationNodesCoordinates(duplicatedNodes, geometricNodes)
             adimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnGeometricCoordinates()
             colocationAdimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnElementContinuity(duplicatedNodes)
             [_, jacobian, normalVector] = getPointsPropertiesOnElement(integrationPoints, elementNodes, adimentionalPoints)
             sourcePointIsOnElement = handleColocationNodeOnElement(elementsList[el], sourcePoints[sp])
             nodeIndex = getIndex(list(colocationCoordinates), sourcePoints[sp])
-
+            
             if type(nodeIndex) is int:
                 sourcePointAdimentionalCoordinate = colocationAdimentionalPoints[nodeIndex]
                                    
@@ -317,13 +315,14 @@ def getHandGMatrices(sourcePoints: list, elementsList: list, geometricNodes):
                 DRDN = radiusComponent1 * normalVector[ip][0] + radiusComponent2 * normalVector[ip][1]
                 
                 Q = (-1 / (2 * math.pi * integrationPointRadius[1])) * DRDN * jacobian[ip] * weights[ip]
-                
+                U = (-1 / (2 * math.pi)) * math.log(integrationPointRadius[1], math.e) * jacobian[ip] * weights[ip]
+                USecondTerm = 0
+                cauchyPrincipalValue = 0
+
                 if sourcePointIsOnElement:
-                    U = UContribuitionWithSingularitySubtraction(elementType, jacobian[ip], sourcePointAdimentionalCoordinate, integrationPoints[ip], integrationPointRadius[1], ip)
-                                        
-                else:
-                    U = (-1 / (2 * math.pi)) * math.log(integrationPointRadius[1], math.e) * jacobian[ip] * weights[ip]
-                                     
+                    sourcePointJacobian = getPointProperty(sourcePointAdimentionalCoordinate, elementNodes, adimentionalPoints)
+                    USecondTerm, cauchyPrincipalValue = UContribuitionWithSingularitySubtraction(sourcePointJacobian, sourcePointAdimentionalCoordinate, integrationPoints[ip], ip)
+                    
 
                 for en in range(len(elementNodes)):
                     shapeFunctionValueOnIP = getShapeFunctionValueOnNode(integrationPoints[ip], en, colocationAdimentionalPoints)
@@ -331,20 +330,28 @@ def getHandGMatrices(sourcePoints: list, elementsList: list, geometricNodes):
                     Qcontribution = Q * shapeFunctionValueOnIP
                     Ucontribution = U * shapeFunctionValueOnIP
 
+                    if sourcePointIsOnElement:
+                        shapeFunctionValueOnSource = getShapeFunctionValueOnNode(sourcePointAdimentionalCoordinate, en, colocationAdimentionalPoints)
+                        Ucontribution += USecondTerm * shapeFunctionValueOnSource + cauchyPrincipalValue * shapeFunctionValueOnSource
+                        
                     HMatrix[sp][elements[el][en]] += Qcontribution
-                    GMatrix[sp][elements[el][en]] += Ucontribution
+                    GMatrix[sp][elements[el][en]] += Ucontribution         
+                
+                USecondTerm = 0
+                cauchyPrincipalValue = 0
 
-    HMatrix = np.array(HMatrix) + correctionMatrix
+    # HMatrix = np.array(HMatrix) + correctionMatrix
+    HMatrix = np.array(HMatrix) 
     GMatrix = np.array(GMatrix)
     
     return HMatrix, GMatrix
 
-HMatrix, GMatrix = getHandGMatrices(sourcePoints, elementsList, geometricNodes)
+HMatrix, GMatrix = getHandGMatrices(sourcePoints, colocationMesh, elementsList, geometricNodes)
 
-def getFinalComponents(HMatrix, GMatrix, u, q, colocationMesh):
+def getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints):
     FHMatrix = np.zeros((len(sourcePoints), len(sourcePoints)))
     FGMatrix = np.zeros((len(sourcePoints), len(sourcePoints)))
-    FVector = np.zeros(len(colocationMesh), dtype=float)
+    FVector = np.zeros(len(sourcePoints), dtype=float)
 
     for j in range(len(u)):
         FHMatrix[:, u[j][0]] = - GMatrix[:, u[j][0]]
@@ -360,9 +367,34 @@ def getFinalComponents(HMatrix, GMatrix, u, q, colocationMesh):
 
     return FHMatrix, FGMatrix, FVector
 
-HMatrix, GMatrix, FVector = getFinalComponents(HMatrix, GMatrix, u, q, colocationMesh)
+FHMatrix, FGMatrix, FVector = getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints)
 
-results = np.linalg.solve(HMatrix, np.dot(GMatrix, FVector))
+results = np.linalg.solve(FHMatrix, np.dot(FGMatrix, FVector))
 
-print(results)
+def getPotentialAndFlowVector(results, u, q, sourcePoints):
+    PotentialVector = np.zeros(len(sourcePoints), dtype=float)
+    FlowVector = np.zeros(len(sourcePoints), dtype=float)
+    
+    for j in range(len(q)):
+        FlowVector[q[j][0]] += q[j][1]
+        PotentialVector[q[j][0]] += results[q[j][0]]
 
+    for k in range(len(u)):
+        FlowVector[u[k][0]] += results[u[k][0]]
+        PotentialVector[u[k][0]] += u[k][1]
+
+    return PotentialVector, FlowVector
+
+PotentialVector, FlowVector = getPotentialAndFlowVector(results, u, q, sourcePoints)
+
+# print(FlowVector)
+internalPoints = [
+    [4,1],
+    [6,2],
+    [0.5,3]
+]
+
+IntHMatrix, IntGMatrix = getHandGMatrices(internalPoints, colocationMesh, elementsList, geometricNodes)
+
+IntPotentialResults = np.dot(IntGMatrix, FlowVector) - np.dot(IntHMatrix, PotentialVector)
+print(IntPotentialResults)

@@ -387,14 +387,60 @@ def getPotentialAndFlowVector(results, u, q, sourcePoints):
 
 PotentialVector, FlowVector = getPotentialAndFlowVector(results, u, q, sourcePoints)
 
-# print(FlowVector)
 internalPoints = [
-    [4,1],
-    [6,2],
-    [0.5,3]
+    [4,2]
 ]
 
 IntHMatrix, IntGMatrix = getHandGMatrices(internalPoints, colocationMesh, elementsList, geometricNodes)
 
 IntPotentialResults = np.dot(IntGMatrix, FlowVector) - np.dot(IntHMatrix, PotentialVector)
-print(IntPotentialResults)
+
+def getInternalFluxMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes):
+    DMatrix = np.zeros((2 * len(sourcePoints), len(colocationMesh)))
+    SMatrix = np.zeros((2 * len(sourcePoints), len(colocationMesh)))
+
+    for sp in range(len(sourcePoints)):
+        
+        for el in range(len(elementsList)):
+            integrationPointsRealCoordinates = getIntegrationPointsCoordinatesPerElement(elementsList[el], geometricNodes)
+            elementNodes = elementsList[el].getElementNodesRealCoordinates(geometricNodes)
+            colocationCoordinates = elementsList[el].getColocationNodesCoordinates(duplicatedNodes, geometricNodes)
+            adimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnGeometricCoordinates()
+            colocationAdimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnElementContinuity(duplicatedNodes)
+            [_, jacobian, normalVector] = getPointsPropertiesOnElement(integrationPoints, elementNodes, adimentionalPoints)         
+                                   
+            for ip in range(len(integrationPoints)):
+                integrationPointRadius = getRadius(sourcePoints[sp], integrationPointsRealCoordinates[ip])
+                radiusComponent1 = integrationPointRadius[0][0] / integrationPointRadius[1]
+                radiusComponent2 = integrationPointRadius[0][1] / integrationPointRadius[1]
+
+                DRDN = radiusComponent1 * normalVector[ip][0] + radiusComponent2 * normalVector[ip][1]
+                
+                partialD = (-1 / (2 * math.pi * integrationPointRadius[1])) * jacobian[ip] * weights[ip]
+                D = partialD * np.array(integrationPointRadius[0]) / integrationPointRadius[1]
+                
+                partialS = (-1 / (2 * math.pi * (integrationPointRadius[1]) ** 2)) * jacobian[ip] * weights[ip]
+                S = partialS * (np.array(normalVector[ip] - 2 * (np.array(integrationPointRadius[0]) / integrationPointRadius[1]) * DRDN))
+                
+                for en in range(len(elementNodes)):
+                    shapeFunctionValueOnIP = getShapeFunctionValueOnNode(integrationPoints[ip], en, colocationAdimentionalPoints)
+
+                    Dcontribution = D * shapeFunctionValueOnIP
+                    Scontribution = S * shapeFunctionValueOnIP
+
+                    for i in range(2):
+
+                        DMatrix[i][elements[el][en]] += Dcontribution[i]
+                        SMatrix[i][elements[el][en]] += Scontribution[i]       
+                
+    DMatrix = np.array(DMatrix) 
+    SMatrix = np.array(SMatrix)
+    
+    return DMatrix, SMatrix
+
+
+DMatrix, SMatrix = getInternalFluxMatrices(internalPoints, colocationMesh, elementsList, geometricNodes)
+
+IntFlowResults = np.dot(DMatrix, FlowVector) - np.dot(SMatrix, PotentialVector)
+
+print(IntFlowResults)

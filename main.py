@@ -388,7 +388,8 @@ def getPotentialAndFlowVector(results, u, q, sourcePoints):
 PotentialVector, FlowVector = getPotentialAndFlowVector(results, u, q, sourcePoints)
 
 internalPoints = [
-    [4,2]
+    [4,2],
+    [5,2]
 ]
 
 IntHMatrix, IntGMatrix = getHandGMatrices(internalPoints, colocationMesh, elementsList, geometricNodes)
@@ -430,17 +431,25 @@ def getInternalFluxMatrices(sourcePoints: list, colocationMesh: list, elementsLi
 
                     for i in range(2):
 
-                        DMatrix[i][elements[el][en]] += Dcontribution[i]
-                        SMatrix[i][elements[el][en]] += Scontribution[i]       
+                        DMatrix[sp * 2 + i][elements[el][en]] += Dcontribution[i]
+                        SMatrix[sp * 2 + i][elements[el][en]] += Scontribution[i]       
                 
     DMatrix = np.array(DMatrix) 
     SMatrix = np.array(SMatrix)
     
     return DMatrix, SMatrix
 
-
 DMatrix, SMatrix = getInternalFluxMatrices(internalPoints, colocationMesh, elementsList, geometricNodes)
 
 IntFlowResults = np.dot(DMatrix, FlowVector) - np.dot(SMatrix, PotentialVector)
 
-print(IntFlowResults)
+boundaryResults = [PotentialVector, FlowVector]
+
+internalResults = []
+for i in range(len(internalPoints)):
+    internalResults.append([IntPotentialResults[i], []])
+
+    for j in range(2):
+        internalResults[i][1].append(IntFlowResults[2 * i + j])
+
+print(internalResults)

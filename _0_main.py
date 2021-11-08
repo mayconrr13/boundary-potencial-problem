@@ -1,12 +1,16 @@
 import numpy as np
 
-from _1_readInputFile import u, q, geometricNodes, internalPoints, elements
+from _1_readInputFile import readInputFile
 from _3_auxiliaryFunctions import generateColocationMesh, getDuplicatedNodes, getElementsList, getFinalComponents, getHandGMatrices, getInternalFluxMatrices, getPotentialAndFlowVector
 from _4_generateResultsFile import generateResultsFile
 
 def potentialBEMProcess():
     # Leitura do arquivo de entrada
-    # desenvolver função
+        # Artigo - 3 elementos lineares por lado
+    u, q, geometricNodes, internalPoints, elements = readInputFile("ex1_imputFile.txt")
+
+        # Artigo - 1 elemento cúbico por lado
+    # u, q, geometricNodes, internalPoints, elements = readInputFile("ex2_imputFile.txt")
 
     # Criação da lista de lementos com base na classe Elementos
     elementsList = getElementsList(elements)
@@ -17,7 +21,7 @@ def potentialBEMProcess():
     sourcePoints = colocationMesh
 
     # Obtenção das matrizes globais H e G
-    HMatrix, GMatrix = getHandGMatrices(sourcePoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes)
+    HMatrix, GMatrix = getHandGMatrices(sourcePoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes, elements)
    
     # Troca de colunas com base nas grandezas prescritas
     FHMatrix, FGMatrix, FVector = getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints, colocationMesh)
@@ -27,23 +31,14 @@ def potentialBEMProcess():
     PotentialVector, FlowVector = getPotentialAndFlowVector(resultsVector, u, q, sourcePoints)
 
     # Determinação do potencial nos pontos internos
-    IntHMatrix, IntGMatrix = getHandGMatrices(internalPoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes)
+    IntHMatrix, IntGMatrix = getHandGMatrices(internalPoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes, elements)
     IntPotentialResults = np.dot(IntGMatrix, FlowVector) - np.dot(IntHMatrix, PotentialVector)
 
     # Determinação do fluxo nos pontos internos
-    DMatrix, SMatrix = getInternalFluxMatrices(internalPoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes)
+    DMatrix, SMatrix = getInternalFluxMatrices(internalPoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes, elements)
     IntFlowResults = np.dot(DMatrix, FlowVector) - np.dot(SMatrix, PotentialVector)
 
-    # Organização e geração do arquivos de resultados
-    boundaryResults = [PotentialVector, FlowVector]
-    internalResults = []
-    for i in range(len(internalPoints)):
-        internalResults.append([IntPotentialResults[i], []])
-
-        for j in range(2):
-            internalResults[i][1].append(IntFlowResults[2 * i + j])
-
-    generateResultsFile(boundaryResults, internalResults)
-
+    # Geração do arquivos de resultados
+    generateResultsFile(PotentialVector, FlowVector, internalPoints, IntPotentialResults, IntFlowResults)
 
 potentialBEMProcess()

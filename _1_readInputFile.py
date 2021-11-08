@@ -1,52 +1,80 @@
-# element, value
-# u = [[1, 0], [3, 10]]
-# q = [[0, 0], [2, 0]]
-# node, value
-# u = [[2, 0], [3, 0], [6, 10], [7, 10]]
-# q = [[0, 0], [1, 0], [4, 0], [5,0]]
+def lineToIgnore(inputFile: str):
+    inputFile.readline()
+    return
 
-# geometricNodes = [
-#     [0, 0],
-#     [8, 0],
-#     [8, 0],
-#     [8, 4],
-#     [8, 4],
-#     [0, 4],
-#     [0, 4],
-#     [0, 0]
-# ]
+def readInputFile(file: str):
+    inputFile = open(file, "r")
 
-# elements = [
-#     [0,1],
-#     [2,3],
-#     [4,5],
-#     [6,7]
-# ]
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
 
-u = [[2, 0], [3, 0], [6, 300], [7, 300]]
-q = [[0, 0], [1, 0], [4, 0], [5, 0]]
+    numberOfExternalNodes = int(inputFile.readline().split(":")[1])
+    numberOfInternalNodes = int(inputFile.readline().split(":")[1])   
+    nodesPerElement = int(inputFile.readline().split(":")[1]) 
+    numberOfElements = int(inputFile.readline().split(":")[1])
 
-geometricNodes = [
-    [0, 0],
-    [6, 0],
-    [6, 0],
-    [6, 6],
-    [6, 6],
-    [0, 6],
-    [0, 6],
-    [0, 0],
-]
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
 
-internalPoints = [
-    [2, 2],
-    # [4,2],
-    [2, 3],
-    # [4,3],
-]
+    geometricNodes = []    
+    for i in range(numberOfExternalNodes):
+        nodesCoordinates = inputFile.readline().split(",")
+        geometricNodes.append([float(nodesCoordinates[1]), float(nodesCoordinates[2])])
 
-elements = [
-    [0, 1],
-    [2, 3],
-    [4, 5],
-    [6, 7]
-]
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+
+    internalPoints = []
+    for j in range(numberOfInternalNodes):
+        points = inputFile.readline().split(",")
+        internalPoints.append([float(points[1]), float(points[2])])
+
+    
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+
+    elements = []
+    for k in range(numberOfElements):
+        item = inputFile.readline().split(",")
+        
+        element = []
+        for kk in range(nodesPerElement + 1):
+            if kk != 0:
+                element.append(int(item[kk]))
+        
+        elements.append(element)
+
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+    lineToIgnore(inputFile)
+
+    u= []
+    q= []
+    for l in range(numberOfExternalNodes):
+        potentialFlow = inputFile.readline().split(",")
+
+        if int(potentialFlow[1]) == 1:
+            q.append([int(potentialFlow[0]), float(potentialFlow[2])])
+
+        elif int(potentialFlow[1]) == 0:
+            u.append([int(potentialFlow[0]), float(potentialFlow[2])])
+
+    inputFile.close()
+
+    return u, q, geometricNodes, internalPoints, elements
+
+u, q, geometricNodes, internalPoints, elements = readInputFile("ex1_imputFile.txt")

@@ -5,7 +5,7 @@ from _2_elementClass import Element
 from integrationsPointsAndWeights import integrationPoints, weights
 from shapeFunctions import getShapeFunctionValueOnNode
 from tangentNormalAndJacobian import getPointProperty, getPointsPropertiesOnElement
-from _1_readInputFile import elements
+from _1_readInputFile import readInputFile
 
 def getElementsList(elements: list): 
     elementsList = np.zeros(len(elements), dtype=list)
@@ -129,7 +129,7 @@ def getIndex(newList, parameter):
         if parameter == newList[i]:
             return i
 
-def getHandGMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes, duplicatedNodes):
+def getHandGMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes, duplicatedNodes, elements):
         HMatrix = np.zeros((len(sourcePoints), len(colocationMesh)))
         GMatrix = np.zeros((len(sourcePoints), len(colocationMesh)))
 
@@ -240,7 +240,7 @@ def getPotentialAndFlowVector(results, u, q, sourcePoints):
         return PotentialVector, FlowVector
 
 
-def getInternalFluxMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes, duplicatedNodes):
+def getInternalFluxMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes, duplicatedNodes, elements):
     DMatrix = np.zeros((2 * len(sourcePoints), len(colocationMesh)))
     SMatrix = np.zeros((2 * len(sourcePoints), len(colocationMesh)))
 

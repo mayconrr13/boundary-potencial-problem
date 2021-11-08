@@ -1,7 +1,7 @@
 import numpy as np
 
 from _1_readInputFile import readInputFile
-from _3_auxiliaryFunctions import generateColocationMesh, getDuplicatedNodes, getElementsList, getFinalComponents, getHandGMatrices, getInternalFluxMatrices, getPotentialAndFlowVector
+from _3_auxiliaryFunctions import generateAuxiliaryMesh, getDuplicatedNodes, getElementsList, getFinalComponents, getHandGMatrices, getInternalFluxMatrices, getPotentialAndFlowVector
 from _4_generateResultsFile import generateResultsFile
 
 def potentialBEMProcess():
@@ -17,25 +17,25 @@ def potentialBEMProcess():
 
     # Geração da malha com pontos fontes no contorno
     duplicatedNodes = getDuplicatedNodes(geometricNodes)
-    colocationMesh = generateColocationMesh(elementsList, duplicatedNodes, geometricNodes)
-    sourcePoints = colocationMesh
+    auxiliaryMesh = generateAuxiliaryMesh(elementsList, duplicatedNodes, geometricNodes)
+    sourcePoints = auxiliaryMesh
 
     # Obtenção das matrizes globais H e G
-    HMatrix, GMatrix = getHandGMatrices(sourcePoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes, elements)
+    HMatrix, GMatrix = getHandGMatrices(sourcePoints, auxiliaryMesh, elementsList, geometricNodes, duplicatedNodes, elements)
    
     # Troca de colunas com base nas grandezas prescritas
-    FHMatrix, FGMatrix, FVector = getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints, colocationMesh)
+    FHMatrix, FGMatrix, FVector = getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints, auxiliaryMesh)
     
     # Resolução do problema e geração dos vetores de potencial e fluxo no contorno
     resultsVector = np.linalg.solve(FHMatrix, np.dot(FGMatrix, FVector))
     PotentialVector, FlowVector = getPotentialAndFlowVector(resultsVector, u, q, sourcePoints)
 
     # Determinação do potencial nos pontos internos
-    IntHMatrix, IntGMatrix = getHandGMatrices(internalPoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes, elements)
+    IntHMatrix, IntGMatrix = getHandGMatrices(internalPoints, auxiliaryMesh, elementsList, geometricNodes, duplicatedNodes, elements)
     IntPotentialResults = np.dot(IntGMatrix, FlowVector) - np.dot(IntHMatrix, PotentialVector)
 
     # Determinação do fluxo nos pontos internos
-    DMatrix, SMatrix = getInternalFluxMatrices(internalPoints, colocationMesh, elementsList, geometricNodes, duplicatedNodes, elements)
+    DMatrix, SMatrix = getInternalFluxMatrices(internalPoints, auxiliaryMesh, elementsList, geometricNodes, duplicatedNodes, elements)
     IntFlowResults = np.dot(DMatrix, FlowVector) - np.dot(SMatrix, PotentialVector)
 
     # Geração do arquivos de resultados

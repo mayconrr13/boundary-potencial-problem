@@ -14,18 +14,18 @@ class Element:
 
         return coordinates
 
-    def getAdimensionalPointsBasedOnGeometricCoordinates(self):
-        adimensionalPoints = np.zeros(len(self.nodeList), dtype=float)
+    def getDimensionlessPointsBasedOnGeometricCoordinates(self):
+        dimensionlessPoints = np.zeros(len(self.nodeList), dtype=float)
 
         for i in range(len(self.nodeList)):
             if i == 0:
-                adimensionalPoints[i] = -1
+                dimensionlessPoints[i] = -1
 
             else:
                 ksiValue = (2 / (len(self.nodeList) - 1)) * i - 1
-                adimensionalPoints[i] = ksiValue
+                dimensionlessPoints[i] = ksiValue
 
-        return adimensionalPoints
+        return dimensionlessPoints
 
     def handleElementType(self, duplicatedNodes):
         amountOfDuplicatedNodes = 0
@@ -41,60 +41,51 @@ class Element:
         else:
             return "continuous"
 
-    def getAdimensionalPointsBasedOnElementContinuity(self, duplicatedNodes):
-        adimensionalPoints = self.getAdimensionalPointsBasedOnGeometricCoordinates()
-        continuityBasedAdimensionalPoints = np.zeros(len(adimensionalPoints))
+    def getDimensionlessPointsBasedOnElementContinuity(self, duplicatedNodes):
+        dimensionlessPoints = self.getDimensionlessPointsBasedOnGeometricCoordinates()
+        continuityBasedDimensionlessPoints = np.zeros(len(dimensionlessPoints))
 
         for j in range(len(self.nodeList)):
             if self.nodeList[j] in duplicatedNodes:
-                discontinuousPoint = adimensionalPoints[j]
+                discontinuousPoint = dimensionlessPoints[j]
 
                 if j == 0:
-                    nextPoint = adimensionalPoints[j + 1]
+                    nextPoint = dimensionlessPoints[j + 1]
 
-                    ksiValue = discontinuousPoint + \
-                        (nextPoint - discontinuousPoint) * 0.25
+                    ksiValue = discontinuousPoint + (nextPoint - discontinuousPoint) * 0.25
 
-                    continuityBasedAdimensionalPoints[j] = ksiValue
+                    continuityBasedDimensionlessPoints[j] = ksiValue
 
                 else:
-                    previousPoint = adimensionalPoints[j - 1]
+                    previousPoint = dimensionlessPoints[j - 1]
 
-                    ksiValue = discontinuousPoint + \
-                        (previousPoint - discontinuousPoint) * 0.25
+                    ksiValue = discontinuousPoint + (previousPoint - discontinuousPoint) * 0.25
 
-                    continuityBasedAdimensionalPoints[j] = ksiValue
+                    continuityBasedDimensionlessPoints[j] = ksiValue
 
             else:
-                continuityBasedAdimensionalPoints[j] = adimensionalPoints[j]
+                continuityBasedDimensionlessPoints[j] = dimensionlessPoints[j]
 
-        return continuityBasedAdimensionalPoints
+        return continuityBasedDimensionlessPoints
 
-    def getColocationNodesCoordinates(self, duplicatedNodes, geometricNodes):
-        adimensionalPoints = self.getAdimensionalPointsBasedOnGeometricCoordinates()
-        continuityBasedAdimensionalPoints = self.getAdimensionalPointsBasedOnElementContinuity(
-            duplicatedNodes)
-        # colocationNodes = np.zeros(len(self.nodeList), dtype=list)
-        colocationNodes = []
-        # colocationNodes = np.array([], dtype=int)
+    def getAuxiliaryNodesCoordinates(self, duplicatedNodes, geometricNodes):
+        dimensionlessPoints = self.getDimensionlessPointsBasedOnGeometricCoordinates()
+        continuityBaseddimensionlessPoints = self.getDimensionlessPointsBasedOnElementContinuity(duplicatedNodes)
+        auxiliaryNodes = []
 
-        for i in range(len(continuityBasedAdimensionalPoints)):
+        for i in range(len(continuityBaseddimensionlessPoints)):
             xCoordinate = 0
             yCoordinate = 0
 
             for j in range(len(self.nodeList)):
                 xCoordinate += getShapeFunctionValueOnNode(
-                    continuityBasedAdimensionalPoints[i], j, adimensionalPoints) * geometricNodes[self.nodeList[j]][0]
+                    continuityBaseddimensionlessPoints[i], j, dimensionlessPoints) * geometricNodes[self.nodeList[j]][0]
                 yCoordinate += getShapeFunctionValueOnNode(
-                    continuityBasedAdimensionalPoints[i], j, adimensionalPoints) * geometricNodes[self.nodeList[j]][1]
+                    continuityBaseddimensionlessPoints[i], j, dimensionlessPoints) * geometricNodes[self.nodeList[j]][1]
 
-            # colocationNodes = np.append(colocationNodes, ([xCoordinate, yCoordinate]))
-            colocationNodes.append([xCoordinate, yCoordinate])
-            # colocationNodes[i] = [xCoordinate, yCoordinate]
+            auxiliaryNodes.append([xCoordinate, yCoordinate])
 
-        # duplicatedNodes = np.array(colocationNodes, dtype=list)
-
-        return colocationNodes
+        return auxiliaryNodes
 
     def __str__(self):
         return str(self.__class__) + ": " + str(self.__dict__)

@@ -5,7 +5,6 @@ from _2_elementClass import Element
 from integrationsPointsAndWeights import integrationPoints, weights
 from shapeFunctions import getShapeFunctionValueOnNode
 from tangentNormalAndJacobian import getPointProperty, getPointsPropertiesOnElement
-from _1_readInputFile import readInputFile
 
 def getElementsList(elements: list): 
     elementsList = np.zeros(len(elements), dtype=list)
@@ -14,6 +13,7 @@ def getElementsList(elements: list):
         elementsList[el] = Element(elements[el])
 
     return elementsList
+
 
 def getDuplicatedNodes(nodeList: list):
     duplicatedNodes = np.array([], dtype=int)
@@ -27,29 +27,31 @@ def getDuplicatedNodes(nodeList: list):
 
     return duplicatedNodes
 
-def generateColocationMesh(elementsList, duplicatedNodes, geometricNodes):
-    colocationMesh = []
+
+def generateAuxiliaryMesh(elementsList, duplicatedNodes, geometricNodes):
+    auxiliaryMesh = []
 
     for i in range(len(elementsList)):
-        elementColocationCoordinates = elementsList[i].getColocationNodesCoordinates(duplicatedNodes, geometricNodes)
+        elementAuxiliaryCoordinates = elementsList[i].getAuxiliaryNodesCoordinates(duplicatedNodes, geometricNodes)
 
-        for j in range(len(elementColocationCoordinates)):
-            if elementColocationCoordinates[j] not in colocationMesh:
-                colocationMesh.append(elementColocationCoordinates[j])
+        for j in range(len(elementAuxiliaryCoordinates)):
+            if elementAuxiliaryCoordinates[j] not in auxiliaryMesh:
+                auxiliaryMesh.append(elementAuxiliaryCoordinates[j])
 
-    return colocationMesh
+    return auxiliaryMesh
+
 
 def getSourcePoints(duplicatedNodes, geometricNodes, elementsList):
     sourcePointsList = []
 
     for i in range(len(elementsList)):
-        elementColocationNodes = elementsList[i].getColocationNodesCoordinates(duplicatedNodes, geometricNodes)
-        adimentionalPoints = elementsList[i].getAdimensionalPointsBasedOnGeometricCoordinates()
-        nodesProperties = getPointsPropertiesOnElement(elementsList[i].nodeList, elementColocationNodes, adimentionalPoints)
+        elementAuxiliaryNodes = elementsList[i].getAuxiliaryNodesCoordinates(duplicatedNodes, geometricNodes)
+        dimensionlessPoints = elementsList[i].getDimensionlessPointsBasedOnGeometricCoordinates()
+        nodesProperties = getPointsPropertiesOnElement(elementsList[i].nodeList, elementAuxiliaryNodes, dimensionlessPoints)
 
         for k in range(len(elementsList[i].nodeList)):
-            xCoordinate = nodesProperties[2][k][0] * 1 + elementColocationNodes[k][0]
-            yCoordinate = nodesProperties[2][k][1] * 1 + elementColocationNodes[k][1]
+            xCoordinate = nodesProperties[2][k][0] * 1 + elementAuxiliaryNodes[k][0]
+            yCoordinate = nodesProperties[2][k][1] * 1 + elementAuxiliaryNodes[k][1]
 
             sourcePointCoordinates = [xCoordinate, yCoordinate]
 
@@ -58,14 +60,15 @@ def getSourcePoints(duplicatedNodes, geometricNodes, elementsList):
 
     return sourcePointsList
 
-def getIntegrationPointCoordinates(points: float, elementNodes: list, adimentionalPoints: list):
+
+def getIntegrationPointCoordinates(points: float, elementNodes: list, dimensionlessPoints: list):
         elementPointsCoordinates = []
         xComponent = 0
         yComponent = 0
 
         for j in range(len(elementNodes)):
-            xComponent += getShapeFunctionValueOnNode(points, j, adimentionalPoints) * elementNodes[j][0]
-            yComponent += getShapeFunctionValueOnNode(points, j, adimentionalPoints) * elementNodes[j][1]
+            xComponent += getShapeFunctionValueOnNode(points, j, dimensionlessPoints) * elementNodes[j][0]
+            yComponent += getShapeFunctionValueOnNode(points, j, dimensionlessPoints) * elementNodes[j][1]
 
         elementPointsCoordinates = [xComponent, yComponent]
 
@@ -77,10 +80,10 @@ def getIntegrationPointCoordinates(points: float, elementNodes: list, adimention
 def getIntegrationPointsCoordinatesPerElement(element: list, geometricNodes: list):
     nodesCoordinatesPerElement = []
     elementNodes = element.getElementNodesRealCoordinates(geometricNodes)
-    adimentionalNodes = element.getAdimensionalPointsBasedOnGeometricCoordinates()
+    dimensionlessNodes = element.getDimensionlessPointsBasedOnGeometricCoordinates()
 
     for ip in range(len(integrationPoints)):
-        coordinate = getIntegrationPointCoordinates(integrationPoints[ip], elementNodes, adimentionalNodes)
+        coordinate = getIntegrationPointCoordinates(integrationPoints[ip], elementNodes, dimensionlessNodes)
         nodesCoordinatesPerElement.append(coordinate)
 
     return nodesCoordinatesPerElement
@@ -95,10 +98,10 @@ def getRadius(sourcePoint: list, integrationPointCoordinates: list):
     return [[xComponent, yComponent], radius]
 
 
-def handleColocationNodeOnElement(element, sourcePointCoordinate, duplicatedNodes, geometricNodes):
-    colocationNodesCoordinates = element.getColocationNodesCoordinates(duplicatedNodes, geometricNodes)
+def handleAuxiliaryNodeOnElement(element, sourcePointCoordinate, duplicatedNodes, geometricNodes):
+    auxiliaryNodesCoordinates = element.getAuxiliaryNodesCoordinates(duplicatedNodes, geometricNodes)
 
-    if sourcePointCoordinate in colocationNodesCoordinates:
+    if sourcePointCoordinate in auxiliaryNodesCoordinates:
         return True
     else:
         return False
@@ -113,10 +116,8 @@ def getCauchyPricipalValue(jacobian, sourcePoint):
         cauchyPrincipalValue = (-1 / (2 * math.pi)) * jacobian * secondTermCPV
 
     else:
-        p1 = (1 + sourcePoint) * \
-            math.log((jacobian * (1 + sourcePoint)), math.e)
-        p2 = (1 - sourcePoint) * \
-            math.log((jacobian * (1 - sourcePoint)), math.e)
+        p1 = (1 + sourcePoint) * math.log((jacobian * (1 + sourcePoint)), math.e)
+        p2 = (1 - sourcePoint) * math.log((jacobian * (1 - sourcePoint)), math.e)
         p3 = - (1 + sourcePoint) - (1 - sourcePoint)
 
         cauchyPrincipalValue = (-1 / (2 * math.pi)) * jacobian * (p1+p2+p3)
@@ -129,28 +130,22 @@ def getIndex(newList, parameter):
         if parameter == newList[i]:
             return i
 
-def getHandGMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes, duplicatedNodes, elements):
-        HMatrix = np.zeros((len(sourcePoints), len(colocationMesh)))
-        GMatrix = np.zeros((len(sourcePoints), len(colocationMesh)))
+
+def getHandGMatrices(sourcePoints: list, auxiliaryMesh: list, elementsList: list, geometricNodes, duplicatedNodes, elements):
+        HMatrix = np.zeros((len(sourcePoints), len(auxiliaryMesh)))
+        GMatrix = np.zeros((len(sourcePoints), len(auxiliaryMesh)))
 
         for sp in range(len(sourcePoints)):
             for el in range(len(elementsList)):
-                integrationPointsRealCoordinates = getIntegrationPointsCoordinatesPerElement(
-                    elementsList[el], geometricNodes)
-                elementNodes = elementsList[el].getElementNodesRealCoordinates(
-                    geometricNodes)
+                integrationPointsRealCoordinates = getIntegrationPointsCoordinatesPerElement(elementsList[el], geometricNodes)
+                elementNodes = elementsList[el].getElementNodesRealCoordinates(geometricNodes)
                 elementType = elementsList[el].handleElementType(duplicatedNodes)
-                colocationCoordinates = elementsList[el].getColocationNodesCoordinates(
-                    duplicatedNodes, geometricNodes)
-                adimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnGeometricCoordinates(
-                )
-                colocationAdimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnElementContinuity(
-                    duplicatedNodes)
-                [_, jacobian, normalVector] = getPointsPropertiesOnElement(
-                    integrationPoints, elementNodes, adimentionalPoints)
-                sourcePointIsOnElement = handleColocationNodeOnElement(
-                    elementsList[el], sourcePoints[sp], duplicatedNodes, geometricNodes)
-                nodeIndex = getIndex(list(colocationCoordinates), sourcePoints[sp])
+                auxiliaryCoordinates = elementsList[el].getAuxiliaryNodesCoordinates(duplicatedNodes, geometricNodes)
+                dimensionlessPoints = elementsList[el].getDimensionlessPointsBasedOnGeometricCoordinates()
+                auxiliaryDimensionlessPoints = elementsList[el].getDimensionlessPointsBasedOnElementContinuity(duplicatedNodes)
+                [_, jacobian, normalVector] = getPointsPropertiesOnElement(integrationPoints, elementNodes, dimensionlessPoints)
+                sourcePointIsOnElement = handleAuxiliaryNodeOnElement(elementsList[el], sourcePoints[sp], duplicatedNodes, geometricNodes)
+                nodeIndex = getIndex(list(auxiliaryCoordinates), sourcePoints[sp])
 
                 for en in range(len(elementNodes)):
                     Q = 0
@@ -158,57 +153,42 @@ def getHandGMatrices(sourcePoints: list, colocationMesh: list, elementsList: lis
                     cauchyPrincipalValue = 0
 
                     if sourcePointIsOnElement:
-                        sourcePointAdimentionalCoordinate = colocationAdimentionalPoints[nodeIndex]
-                        sourcePointJacobian = getPointProperty(
-                            sourcePointAdimentionalCoordinate, elementNodes, adimentionalPoints)
+                        sourcePointDimensionlessCoordinate = auxiliaryDimensionlessPoints[nodeIndex]
+                        sourcePointJacobian = getPointProperty(sourcePointDimensionlessCoordinate, elementNodes, dimensionlessPoints)
 
-                        shapeFunctionValueOnSource = getShapeFunctionValueOnNode(
-                            sourcePointAdimentionalCoordinate, en, colocationAdimentionalPoints)
-                        cauchyPrincipalValue = getCauchyPricipalValue(
-                            sourcePointJacobian, sourcePointAdimentionalCoordinate)
+                        shapeFunctionValueOnSource = getShapeFunctionValueOnNode(sourcePointDimensionlessCoordinate, en, auxiliaryDimensionlessPoints)
+                        cauchyPrincipalValue = getCauchyPricipalValue(sourcePointJacobian, sourcePointDimensionlessCoordinate)
 
-                        GMatrix[sp][elements[el][en]] += cauchyPrincipalValue * \
-                            shapeFunctionValueOnSource
+                        GMatrix[sp][elements[el][en]] += cauchyPrincipalValue * shapeFunctionValueOnSource
 
                     for ip in range(len(integrationPoints)):
-                        integrationPointRadius = getRadius(
-                            sourcePoints[sp], integrationPointsRealCoordinates[ip])
-                        radiusComponent1 = integrationPointRadius[0][0] / \
-                            integrationPointRadius[1]
-                        radiusComponent2 = integrationPointRadius[0][1] / \
-                            integrationPointRadius[1]
+                        integrationPointRadius = getRadius(sourcePoints[sp], integrationPointsRealCoordinates[ip])
+                        radiusComponent1 = integrationPointRadius[0][0] /integrationPointRadius[1]
+                        radiusComponent2 = integrationPointRadius[0][1] / integrationPointRadius[1]
 
-                        DRDN = radiusComponent1 * \
-                            normalVector[ip][0] + \
-                            radiusComponent2 * normalVector[ip][1]
-                        shapeFunctionValueOnIP = getShapeFunctionValueOnNode(
-                            integrationPoints[ip], en, colocationAdimentionalPoints)
+                        DRDN = radiusComponent1 * normalVector[ip][0] +  radiusComponent2 * normalVector[ip][1]
+                        shapeFunctionValueOnIP = getShapeFunctionValueOnNode(integrationPoints[ip], en, auxiliaryDimensionlessPoints)
 
-                        Q += (-1 / (2 * math.pi * integrationPointRadius[1])) * \
-                            DRDN * jacobian[ip] * weights[ip] * \
-                            shapeFunctionValueOnIP
-                        U += (-1 / (2 * math.pi)) * math.log(
-                            integrationPointRadius[1], math.e) * jacobian[ip] * weights[ip] * shapeFunctionValueOnIP
+                        Q += (-1 / (2 * math.pi * integrationPointRadius[1])) * DRDN * jacobian[ip] * weights[ip] * shapeFunctionValueOnIP
+                        U += (-1 / (2 * math.pi)) * math.log(integrationPointRadius[1], math.e) * jacobian[ip] * weights[ip] * shapeFunctionValueOnIP
 
                         if sourcePointIsOnElement:
-                            radiusCheck = jacobian[ip] * (
-                                integrationPoints[ip] - sourcePointAdimentionalCoordinate)
+                            radiusCheck = jacobian[ip] * (integrationPoints[ip] - sourcePointDimensionlessCoordinate)
 
-                            U -= (-1 / (2 * math.pi)) * math.log(abs(radiusCheck), math.e) * \
-                                sourcePointJacobian * \
-                                weights[ip] * shapeFunctionValueOnSource
+                            U -= (-1 / (2 * math.pi)) * math.log(abs(radiusCheck), math.e) * sourcePointJacobian * weights[ip] * shapeFunctionValueOnSource
 
                     HMatrix[sp][elements[el][en]] += Q
                     GMatrix[sp][elements[el][en]] += U
 
         return HMatrix, GMatrix
 
-def getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints, colocationMesh):
+
+def getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints, auxiliaryMesh):
         FHMatrix = np.zeros((len(sourcePoints), len(sourcePoints)), dtype=float)
         FGMatrix = np.zeros((len(sourcePoints), len(sourcePoints)), dtype=float)
         FVector = np.zeros(len(sourcePoints), dtype=float)
 
-        if sourcePoints == colocationMesh:
+        if sourcePoints == auxiliaryMesh:
             HMatrix += np.identity(len(sourcePoints)) * 1/2
 
         for j in range(len(u)):
@@ -225,6 +205,7 @@ def getFinalComponents(HMatrix, GMatrix, u, q, sourcePoints, colocationMesh):
 
         return FHMatrix, FGMatrix, FVector
 
+
 def getPotentialAndFlowVector(results, u, q, sourcePoints):
         PotentialVector = np.zeros(len(sourcePoints), dtype=float)
         FlowVector = np.zeros(len(sourcePoints), dtype=float)
@@ -240,18 +221,18 @@ def getPotentialAndFlowVector(results, u, q, sourcePoints):
         return PotentialVector, FlowVector
 
 
-def getInternalFluxMatrices(sourcePoints: list, colocationMesh: list, elementsList: list, geometricNodes, duplicatedNodes, elements):
-    DMatrix = np.zeros((2 * len(sourcePoints), len(colocationMesh)))
-    SMatrix = np.zeros((2 * len(sourcePoints), len(colocationMesh)))
+def getInternalFluxMatrices(sourcePoints: list, auxiliaryMesh: list, elementsList: list, geometricNodes, duplicatedNodes, elements):
+    DMatrix = np.zeros((2 * len(sourcePoints), len(auxiliaryMesh)))
+    SMatrix = np.zeros((2 * len(sourcePoints), len(auxiliaryMesh)))
 
     for sp in range(len(sourcePoints)):
 
         for el in range(len(elementsList)):
             integrationPointsRealCoordinates = getIntegrationPointsCoordinatesPerElement(elementsList[el], geometricNodes)
             elementNodes = elementsList[el].getElementNodesRealCoordinates(geometricNodes)
-            adimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnGeometricCoordinates()
-            colocationAdimentionalPoints = elementsList[el].getAdimensionalPointsBasedOnElementContinuity(duplicatedNodes)
-            [_, jacobian, normalVector] = getPointsPropertiesOnElement(integrationPoints, elementNodes, adimentionalPoints)
+            dimensionlessPoints = elementsList[el].getDimensionlessPointsBasedOnGeometricCoordinates()
+            auxiliaryDimensionlessPoints = elementsList[el].getDimensionlessPointsBasedOnElementContinuity(duplicatedNodes)
+            [_, jacobian, normalVector] = getPointsPropertiesOnElement(integrationPoints, elementNodes, dimensionlessPoints)
 
             for ip in range(len(integrationPoints)):
                 integrationPointRadius = getRadius(sourcePoints[sp], integrationPointsRealCoordinates[ip])
@@ -267,7 +248,7 @@ def getInternalFluxMatrices(sourcePoints: list, colocationMesh: list, elementsLi
                 S = partialS * (np.array(normalVector[ip] - 2 * (np.array(integrationPointRadius[0]) / integrationPointRadius[1]) * DRDN))
 
                 for en in range(len(elementNodes)):
-                    shapeFunctionValueOnIP = getShapeFunctionValueOnNode(integrationPoints[ip], en, colocationAdimentionalPoints)
+                    shapeFunctionValueOnIP = getShapeFunctionValueOnNode(integrationPoints[ip], en, auxiliaryDimensionlessPoints)
 
                     Dcontribution = D * shapeFunctionValueOnIP
                     Scontribution = S * shapeFunctionValueOnIP

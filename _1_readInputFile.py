@@ -77,4 +77,4 @@ def readInputFile(file: str):
 
     return u, q, geometricNodes, internalPoints, elements
 
-u, q, geometricNodes, internalPoints, elements = readInputFile("ex1_imputFile.txt")
+# u, q, geometricNodes, internalPoints, elements = readInputFile("ex1_imputFile.txt")

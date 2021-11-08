@@ -7,10 +7,10 @@ from _4_generateResultsFile import generateResultsFile
 def potentialBEMProcess():
     # Leitura do arquivo de entrada
         # Artigo - 3 elementos lineares por lado
-    u, q, geometricNodes, internalPoints, elements = readInputFile("ex1_imputFile.txt")
+    # u, q, geometricNodes, internalPoints, elements = readInputFile("ex1_inputFile.txt")
 
         # Artigo - 1 elemento cúbico por lado
-    # u, q, geometricNodes, internalPoints, elements = readInputFile("ex2_imputFile.txt")
+    u, q, geometricNodes, internalPoints, elements = readInputFile("ex2_inputFile.txt")
 
     # Criação da lista de lementos com base na classe Elementos
     elementsList = getElementsList(elements)
